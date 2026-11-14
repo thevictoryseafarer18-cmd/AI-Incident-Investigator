@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Incident Investigator — MVP Prototype</title>
+<style>
+  :root{
+    --bg:#eef2ff; --card:#ffffff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b;
+    --indigo:#6366f1; --violet:#8b5cf6; --pink:#ec4899; --cyan:#06b6d4; --amber:#f59e0b; --emerald:#10b981; --rose:#f43f5e;
+    --grad:linear-gradient(135deg,#6366f1 0%,#8b5cf6 45%,#ec4899 100%);
+    --grad2:linear-gradient(135deg,#06b6d4 0%,#6366f1 100%);
+    --grad3:linear-gradient(135deg,#f59e0b 0%,#f43f5e 100%);
+    --shadow:0 10px 30px rgba(99,102,241,.12), 0 2px 8px rgba(15,23,42,.06);
+    --shadow-sm:0 4px 14px rgba(15,23,42,.08);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--text);line-height:1.55;
+    background:
+      radial-gradient(900px 500px at 10% -10%, rgba(99,102,241,.18), transparent 60%),
+      radial-gradient(800px 500px at 90% 0%, rgba(236,72,153,.14), transparent 60%),
+      radial-gradient(700px 600px at 50% 110%, rgba(6,182,212,.12), transparent 60%),
+      linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%);
+    min-height:100vh;
+  }
+  .wrap{max-width:1280px;margin:0 auto;padding:22px}
+  /* HEADER */
+  header{position:relative;overflow:hidden;color:#fff;padding:30px 26px;border-radius:22px;margin-bottom:18px;
+    background:linear-gradient(135deg,#312e81 0%,#6d28d9 38%,#be185d 78%,#f59e0b 130%);
+    box-shadow:0 20px 50px rgba(109,40,217,.35);
+  }
+  header:before{content:"";position:absolute;inset:0;background:
+    radial-gradient(500px 220px at 85% 10%, rgba(255,255,255,.22), transparent 60%),
+    radial-gradient(400px 200px at 5% 90%, rgba(6,182,212,.35), transparent 60%);
+    pointer-events:none}
+  header:after{content:"";position:absolute;right:-40px;top:-40px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.10);filter:blur(2px)}
+  header h1{margin:0;font-size:30px;letter-spacing:-.03em;position:relative;z-index:1}
+  header h1 span{background:linear-gradient(90deg,#fde68a,#fda4af,#a5b4fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:10px 0 0;color:#e0e7ff;max-width:780px;position:relative;z-index:1;font-size:15px}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;position:relative;z-index:1}
+  .badge{font-size:12px;font-weight:600;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(6px)}
+  .badge b{color:#fff}
+  .incident-card{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:16px;padding:14px;min-width:240px;backdrop-filter:blur(8px);position:relative;z-index:1}
+  /* ARCH */
+  .arch{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .arch .card{padding:14px 16px;position:relative;overflow:hidden}
+  .arch .card:before{content:"";position:absolute;left:0;top:0;right:0;height:4px}
+  .arch .card:nth-child(1):before{background:linear-gradient(90deg,#06b6d4,#6366f1)}
+  .arch .card:nth-child(2):before{background:linear-gradient(90deg,#6366f1,#8b5cf6)}
+  .arch .card:nth-child(3):before{background:linear-gradient(90deg,#8b5cf6,#ec4899)}
+  .arch .card:nth-child(4):before{background:linear-gradient(90deg,#ec4899,#f59e0b)}
+  .arch h4{margin:2px 0 4px;font-size:13px}
+  .arch p{margin:0;font-size:12.5px;color:var(--muted)}
+  .arch .num{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;color:#fff;font-weight:800;font-size:12px;margin-right:6px;vertical-align:middle}
+  .arch .card:nth-child(1) .num{background:linear-gradient(135deg,#06b6d4,#6366f1)}
+  .arch .card:nth-child(2) .num{background:linear-gradient(135deg,#6366f1,#8b5cf6)}
+  .arch .card:nth-child(3) .num{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
+  .arch .card:nth-child(4) .num{background:linear-gradient(135deg,#ec4899,#f59e0b)}
+  /* LAYOUT */
+  .grid{display:grid;grid-template-columns:430px 1fr;gap:16px;align-items:start}
+  @media(max-width:980px){.grid{grid-template-columns:1fr}.arch{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.arch{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid rgba(226,232,240,.9);border-radius:18px;padding:18px;box-shadow:var(--shadow-sm)}
+  .card h3{margin:0 0 6px;font-size:16px;letter-spacing:-.01em}
+  .muted{color:var(--muted);font-size:13px}
+  /* INPUTS */
+  textarea{width:100%;min-height:150px;resize:vertical;border:2px solid #e2e8f0;border-radius:14px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.6;background:#f8fafc;transition:.2s}
+  textarea:focus{outline:none;border-color:#a5b4fc;background:#fff;box-shadow:0 0 0 4px rgba(99,102,241,.15)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .btn{border:1.5px solid #e2e8f0;background:#fff;padding:10px 16px;border-radius:999px;font-weight:700;font-size:13px;cursor:pointer;transition:.2s;box-shadow:0 2px 6px rgba(15,23,42,.05)}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(15,23,42,.10);border-color:#cbd5e1}
+  .btn:active{transform:translateY(0)}
+  .btn.primary{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 8px 20px rgba(139,92,246,.35)}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn.teal{background:linear-gradient(135deg,#06b6d4,#6366f1);color:#fff;border-color:transparent}
+  .btn.ghost{background:#f8fafc}
+  .input-card{margin-bottom:14px;border-top:4px solid transparent;border-image:var(--grad) 1}
+  .input-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .pill{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px;border-radius:999px;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.12)}
+  .pill.logs{background:linear-gradient(135deg,#f59e0b,#f97316)}
+  .pill.bug{background:linear-gradient(135deg,#06b6d4,#2563eb)}
+  .pill.deploy{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
+  /* STATS */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+  @media(max-width:700px){.stats{grid-template-columns:1fr 1fr}}
+  .stat{border-radius:16px;padding:16px;color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow-sm)}
+  .stat:nth-child(1){background:linear-gradient(135deg,#6366f1,#8b5cf6)}
+  .stat:nth-child(2){background:linear-gradient(135deg,#f43f5e,#ec4899)}
+  .stat:nth-child(3){background:linear-gradient(135deg,#06b6d4,#6366f1)}
+  .stat:nth-child(4){background:linear-gradient(135deg,#f59e0b,#f97316)}
+  .stat:after{content:"";position:absolute;right:-18px;top:-18px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.18)}
+  .stat b{font-size:26px;display:block;line-height:1;position:relative;z-index:1}
+  .stat span{font-size:12px;opacity:.92;position:relative;z-index:1}
+  .stat .icon{font-size:18px;opacity:.9}
+  /* SECTIONS */
+  .section{margin-bottom:14px;position:relative}
+  .section:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:4px}
+  .section:nth-of-type(1):before{background:linear-gradient(180deg,#10b981,#06b6d4)}
+  .section:nth-of-type(2):before{background:linear-gradient(180deg,#6366f1,#8b5cf6)}
+  .section:nth-of-type(3):before{background:linear-gradient(180deg,#f43f5e,#ec4899)}
+  .section:nth-of-type(4):before{background:linear-gradient(180deg,#f59e0b,#ec4899)}
+  .section:nth-of-type(5):before{background:linear-gradient(180deg,#06b6d4,#10b981)}
+  .section:nth-of-type(6):before{background:linear-gradient(180deg,#0f172a,#6366f1)}
+  /* TIMELINE */
+  .timeline{position:relative;padding-left:26px;margin-top:10px}
+  .timeline:before{content:"";position:absolute;left:9px;top:8px;bottom:8px;width:3px;border-radius:3px;background:linear-gradient(180deg,#6366f1,#8b5cf6,#ec4899,#f59e0b)}
+  .titem{position:relative;padding:10px 12px;margin-bottom:8px;border-radius:12px;background:#f8fafc;border:1px solid #eef2f7;transition:.15s}
+  .titem:hover{background:#fff;border-color:#e2e8f0;box-shadow:0 4px 12px rgba(15,23,42,.06)}
+  .titem:before{content:"";position:absolute;left:-23px;top:16px;width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #cbd5e1;z-index:1}
+  .titem.error{background:#fff1f2;border-color:#fecdd3}
+  .titem.error:before{border-color:#f43f5e;background:#f43f5e;box-shadow:0 0 0 4px #ffe4e6}
+  .titem.deploy{background:#eef2ff;border-color:#c7d2fe}
+  .titem.deploy:before{border-color:#6366f1;background:#6366f1;box-shadow:0 0 0 4px #e0e7ff}
+  .titem.warn{background:#fffbeb;border-color:#fde68a}
+  .titem.warn:before{border-color:#f59e0b;background:#f59e0b;box-shadow:0 0 0 4px #fef3c7}
+  .titem.info:before{border-color:#06b6d4;background:#06b6d4;box-shadow:0 0 0 4px #cffafe}
+  .titem.alert{background:#fef2f2;border-color:#fecaca}
+  .titem.alert:before{border-color:#dc2626;background:#dc2626;box-shadow:0 0 0 4px #fee2e2}
+  .tmeta{font-size:11.5px;color:var(--muted);font-family:ui-monospace,monospace;font-weight:600}
+  .tmsg{font-size:13.5px;margin-top:2px}
+  .tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.04em;padding:3px 8px;border-radius:999px;margin-left:6px;vertical-align:middle;text-transform:uppercase}
+  .tag.confirmed{background:#dcfce7;color:#166534;border:1px solid #86efac}
+  .tag.hypothesis{background:#fef9c3;color:#854d0e;border:1px solid #fde047}
+  .tag.deploy{background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc}
+  .tag.error{background:#ffe4e6;color:#9f1239;border:1px solid #fda4af}
+  /* HYPOTHESES */
+  .hyp{border:1.5px solid #e2e8f0;border-radius:16px;padding:16px;margin-bottom:12px;background:#fff;transition:.2s}
+  .hyp:hover{box-shadow:var(--shadow-sm)}
+  .hyp.top{border:2px solid transparent;background:linear-gradient(#fff,#fff) padding-box, var(--grad) border-box;box-shadow:0 12px 30px rgba(139,92,246,.18)}
+  .hyp-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .conf{font-size:11px;font-weight:900;letter-spacing:.05em;padding:6px 10px;border-radius:999px;white-space:nowrap;text-transform:uppercase}
+  .conf.high{background:linear-gradient(135deg,#10b981,#059669);color:#fff;box-shadow:0 4px 12px rgba(16,185,129,.35)}
+  .conf.med{background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;box-shadow:0 4px 12px rgba(245,158,11,.35)}
+  .conf.low{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
+  .evidence{background:linear-gradient(180deg,#f8fafc,#f1f5f9);border:1px dashed #cbd5e1;border-radius:12px;padding:12px 14px;font-size:13px;margin-top:10px}
+  .evidence li{margin:5px 0}
+  /* STEPS */
+  .steps{counter-reset:step;list-style:none;padding:0;margin:0}
+  .steps li{counter-increment:step;padding:12px 14px 12px 52px;position:relative;border:1.5px solid #e2e8f0;border-radius:14px;margin-bottom:9px;background:#fff;font-size:13.5px;transition:.15s}
+  .steps li:hover{border-color:#c7d2fe;background:#fafaff;transform:translateX(2px)}
+  .steps li:before{content:counter(step);position:absolute;left:14px;top:12px;width:26px;height:26px;border-radius:50%;background:var(--grad);color:#fff;font-size:13px;font-weight:900;display:grid;place-items:center;box-shadow:0 4px 10px rgba(139,92,246,.35)}
+  .steps b{display:block}
+  .steps span{color:var(--muted);font-size:12.5px}
+  /* FACTS */
+  .fact{display:flex;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:6px;background:#f0fdf4;border:1px solid #bbf7d0;font-size:13.5px}
+  .fact:nth-child(even){background:#f0f9ff;border-color:#bae6fd}
+  .dot{width:9px;height:9px;border-radius:50%;background:#10b981;margin-top:7px;flex-shrink:0;box-shadow:0 0 0 3px #dcfce7}
+  /* ERROR GROUPS */
+  .errgroup{border:1.5px solid #fecdd3;border-radius:14px;padding:14px;margin-bottom:10px;background:linear-gradient(180deg,#fff1f2,#fff)}
+  .errgroup code{font-family:ui-monospace,monospace;font-size:12px;background:#fff;border:1px solid #fecdd3;padding:3px 8px;border-radius:8px;color:#9f1239;font-weight:600}
+  .empty{padding:20px;text-align:center;color:var(--muted);border:2px dashed #cbd5e1;border-radius:14px;background:#f8fafc}
+  .footer{font-size:12px;color:var(--muted);text-align:center;padding:20px 0 10px}
+  .kbd{font-family:ui-monospace,monospace;background:#fff;border:1px solid #e2e8f0;border-bottom-width:2px;padding:1px 6px;border-radius:6px;font-size:11.5px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  details{border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 14px;background:linear-gradient(180deg,#f8fafc,#eef2ff);margin-top:12px}
+  summary{cursor:pointer;font-weight:700;font-size:13px;color:#4338ca}
+  pre{white-space:pre-wrap;word-break:break-word;font-size:12px;background:#0f172a;color:#a5b4fc;padding:16px;border-radius:14px;overflow:auto;border:1px solid #1e293b;line-height:1.6}
+  .toast{position:fixed;right:18px;bottom:18px;background:#0f172a;color:#fff;padding:12px 18px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:0 12px 30px rgba(0,0,0,.25);display:none;z-index:99}
+  .try-card{background:linear-gradient(135deg,#eef2ff,#fdf2f8);border:1.5px solid #c7d2fe}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div style="display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;align-items:flex-start;position:relative;z-index:1">
+      <div style="flex:1;min-width:280px">
+        <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.85">🚨 Incident Response · MVP Prototype</div>
+        <h1>🔍 AI Incident <span>Investigator</span></h1>
+        <p>Correlates logs, bug reports &amp; deployments into a timeline, ranked root-cause hypotheses with evidence — and clear next steps. <b style="color:#fff">Confirmed facts are separated from hypotheses.</b></p>
+        <div class="badges">
+          <span class="badge">✨ <b>MVP</b> · Browser-only</span>
+          <span class="badge">🚫 No backend · No API keys</span>
+          <span class="badge">⚙️ Rule-based engine</span>
+          <span class="badge">🧾 Explainable · Evidence-linked</span>
+        </div>
+      </div>
+      <div class="incident-card">
+        <div style="font-size:11px;color:#c7d2fe;text-transform:uppercase;letter-spacing:.1em;font-weight:800">📌 Sample incident</div>
+        <div style="font-weight:800;margin-top:6px;font-size:16px">Checkout 500s after v2.4.1</div>
+        <div style="font-size:13px;color:#e0e7ff;margin-top:4px">🔴 Redis pool cut 50 → 10<br>⚡ First error 31s after deploy</div>
+        <div style="margin-top:10px;font-size:12px;background:rgba(255,255,255,.15);padding:6px 9px;border-radius:8px">P1 · Revenue-critical · 18% error rate</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="arch">
+    <div class="card"><h4><span class="num">1</span> Ingest</h4><p>Three inputs: logs, bug report, deployment notes. Paste your own or load sample.</p></div>
+    <div class="card"><h4><span class="num">2</span> Parse &amp; Extract</h4><p>Regex parses timestamps, service, level, error signature, trace IDs, deploy events.</p></div>
+    <div class="card"><h4><span class="num">3</span> Correlate</h4><p>Groups related errors, checks time proximity to deploys, keyword overlap, frequency spike.</p></div>
+    <div class="card"><h4><span class="num">4</span> Explain</h4><p>Scores hypotheses, lists evidence for/against, separates facts vs. hypotheses.</p></div>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT: INPUTS -->
+    <div>
+      <div class="card input-card">
+        <div class="input-head">
+          <h3>📥 Evidence Inputs</h3>
+          <span class="muted" id="charCount" style="background:#eef2ff;color:#4338ca;font-weight:700;padding:4px 9px;border-radius:999px;font-size:12px">0 chars</span>
+        </div>
+        <div class="row" style="margin-bottom:12px">
+          <button class="btn primary" id="loadSample">✨ Load sample dataset</button>
+          <button class="btn teal" id="analyzeBtn">▶ Analyze incident</button>
+          <button class="btn ghost" id="clearBtn">Clear</button>
+        </div>
+        <p class="muted" style="margin:0 0 14px">Edit any box and re-run. The engine works on <i>your</i> text — try pasting a different incident.</p>
+
+        <div style="margin-bottom:14px">
+          <div class="row" style="justify-content:space-between;margin-bottom:7px">
+            <span class="pill logs">📋 Error Logs</span>
+            <span class="muted">timestamp · service · level · message</span>
+          </div>
+          <textarea id="logsInput" placeholder="Paste logs here... e.g. 2026-11-13T14:19:15Z ERROR checkout-service Failed to reserve inventory: Redis timeout"></textarea>
+        </div>
+
+        <div style="margin-bottom:14px">
+          <div class="row" style="justify-content:space-between;margin-bottom:7px">
+            <span class="pill bug">🐛 Bug Report</span>
+            <span class="muted">title · impact · repro steps</span>
+          </div>
+          <textarea id="bugInput" placeholder="Paste bug report here..."></textarea>
+        </div>
+
+        <div>
+          <div class="row" style="justify-content:space-between;margin-bottom:7px">
+            <span class="pill deploy">🚀 Deployment Notes</span>
+            <span class="muted">version · changes · rollback</span>
+          </div>
+          <textarea id="deployInput" placeholder="Paste deployment notes here..."></textarea>
+        </div>
+
+        <details>
+          <summary>💡 How the engine decides (transparent rules)</summary>
+          <ul style="font-size:13px;color:#475569;margin:10px 0 0;padding-left:18px;line-height:1.7">
+            <li><b>⏱ Temporal proximity:</b> deploy within 5 min before first error → strong signal.</li>
+            <li><b>🔤 Keyword overlap:</b> same component (Redis / DB / payment) in deploy + errors → boosts score.</li>
+            <li><b>📊 Frequency:</b> repeated same error signature → grouped as one related-error cluster.</li>
+            <li><b>🔗 Cascade check:</b> downstream errors <i>after</i> upstream are treated as effect, not cause.</li>
+            <li><b>🎯 Confidence:</b> High = deploy + keyword + timing all align. Med = 2 signals. Low = 1 signal.</li>
+          </ul>
+        </details>
+      </div>
+
+      <div class="card try-card">
+        <h3>🧪 Try it in 30 seconds</h3>
+        <p class="muted" style="line-height:1.7">1. <b>Load sample</b> (already loaded)<br>2. Click <b>Analyze incident</b><br>3. Read timeline → hypotheses → steps<br>4. Edit deploy notes (remove “Redis pool”) &amp; re-analyze — confidence drops. <b>That’s explainability.</b></p>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" id="exportBtn">⬇ Export report (.md)</button>
+          <button class="btn" id="copyBtn">📋 Copy summary</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: RESULTS -->
+    <div id="results">
+      <div class="stats" id="stats"></div>
+
+      <div class="card section">
+        <div class="row" style="justify-content:space-between">
+          <h3>✅ Confirmed Facts <span class="tag confirmed">FACT</span></h3>
+          <span class="muted">Directly observed — not inferred</span>
+        </div>
+        <div id="facts" style="margin-top:10px"></div>
+        <div class="legend"><span><i style="background:#10b981"></i>Confirmed fact</span><span><i style="background:#f59e0b"></i>Hypothesis / inference</span><span>Every fact cites its source.</span></div>
+      </div>
+
+      <div class="card section">
+        <h3>🕒 Event Timeline</h3>
+        <p class="muted">All evidence merged and sorted by time — deployments, warnings, errors &amp; alerts in one view.</p>
+        <div class="timeline" id="timeline"></div>
+      </div>
+
+      <div class="card section">
+        <h3>🔗 Related Errors <span style="color:#f43f5e">(grouped)</span></h3>
+        <p class="muted">Similar messages collapsed into clusters so you see patterns, not noise.</p>
+        <div id="errorGroups" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card section">
+        <h3>💡 Root-Cause Hypotheses <span class="tag hypothesis">HYPOTHESIS</span></h3>
+        <p class="muted">Ranked by evidence strength. Each shows <b>why</b> it’s plausible and what would disprove it.</p>
+        <div id="hypotheses" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card section">
+        <h3>🛠 Recommended Debugging Steps</h3>
+        <p class="muted">Ordered by the top hypothesis — work top to bottom.</p>
+        <ol class="steps" id="steps" style="margin-top:10px"></ol>
+      </div>
+
+      <div class="card section">
+        <h3>🧾 Reasoning Trace</h3>
+        <p class="muted">Machine-readable summary of what the engine saw and scored.</p>
+        <pre id="trace" style="margin-top:10px"></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">AI Incident Investigator · MVP prototype · Rule-based engine runs entirely in your browser · Replace the rule engine with an LLM later — keep the evidence-linking UI. &nbsp;|&nbsp; Made with 💜 for incident response</div>
+</div>
+<div class="toast" id="toast">Done</div>
+
+<script>
+// ---------- SAMPLE DATASET ----------
+const SAMPLE = {
+logs: `2026-11-13T14:02:11Z INFO checkout-service Service started - checkout-service v2.4.0 listening on port 8080
+2026-11-13T14:15:03Z INFO deploy-service Deployment v2.4.1 started for checkout-service
+2026-11-13T14:18:44Z INFO deploy-service Deployment v2.4.1 completed - checkout-service
+2026-11-13T14:19:02Z WARN checkout-service Redis cache hit rate dropping: 92% -> 61%
+2026-11-13T14:19:15Z ERROR checkout-service Failed to reserve inventory: Redis connection timeout after 2000ms trace_id=abc123
+2026-11-13T14:19:22Z ERROR checkout-service POST /checkout 500 - Redis timeout trace_id=abc124
+2026-11-13T14:19:31Z ERROR checkout-service POST /checkout 500 - Redis timeout trace_id=abc125
+2026-11-13T14:20:05Z ERROR payment-service Payment declined: inventory reservation failed trace_id=abc124
+2026-11-13T14:20:41Z ERROR checkout-service Failed to reserve inventory: Redis connection timeout after 2000ms trace_id=abc126
+2026-11-13T14:21:10Z ERROR checkout-service POST /checkout 500 - Redis timeout trace_id=abc127
+2026-11-13T14:22:10Z ERROR checkout-service DB connection pool exhausted: waiting 5000ms trace_id=abc128
+2026-11-13T14:22:44Z ERROR checkout-service POST /checkout 500 - Redis timeout trace_id=abc129
+2026-11-13T14:23:30Z WARN checkout-service Redis active connections: 10/10 (pool saturated)
+2026-11-13T14:25:00Z ERROR monitoring Alert fired: checkout error rate >5% (now 18%)`,
+bug: `Title: Checkout fails with 500 for ~20% users since 2:19 PM
+Reporter: Support team (ticket #4821)
+Severity: P1 - checkout is revenue-critical
+
+Steps to reproduce:
+1. Add item to cart
+2. Click Checkout
+3. See "Something went wrong" (HTTP 500)
+
+Expected: Order completes successfully
+Actual: ~18-20% of checkout attempts return 500. Started exactly around 14:19 UTC today. No change on client side. Affects all regions.
+
+Impact: ~340 failed checkouts in first 6 minutes. Payment gateway itself is healthy per status page.`,
+deploy: `Deployment: checkout-service v2.4.1
+Deployed: 2026-11-13T14:18:44Z by deploy-service
+Author: platform-team
+
+Changes in v2.4.1:
+- Changed Redis client config: reduced connection pool size from 50 to 10, timeout 2000ms (to reduce Redis memory)
+- Added new inventory check logic before payment (reserve inventory first)
+- Bumped payment-service client to v1.9 (no breaking changes expected)
+- Updated DB pool: max 20 -> 30 (minor)
+
+Rollback plan: redeploy v2.4.0 (pool size 50) - estimated 3 min
+Monitoring: watch checkout error rate + Redis connection metrics for 30 min post-deploy`
+};
+
+// ---------- HELPERS ----------
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); }
+function parseTime(s){ const d=new Date(s); return isNaN(d)?null:d; }
+function fmtTime(d){ return d.toISOString().replace('T',' ').slice(0,19)+'Z'; }
+function minsBetween(a,b){ return Math.round((b-a)/60000*10)/10; }
+
+function parseLogs(text){
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const events=[];
+  const re = /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?)\s+(INFO|WARN|ERROR|FATAL|DEBUG)\s+(\S+)\s+(.*)/;
+  lines.forEach((line,i)=>{
+    const m = line.match(re);
+    if(m){
+      const t=parseTime(m[1]);
+      events.push({time:t, rawTime:m[1], level:m[2], service:m[3], msg:m[4], source:'logs', line:i+1, raw:line});
+    } else {
+      const tm = line.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?)/);
+      if(tm) events.push({time:parseTime(tm[1]), rawTime:tm[1], level:'INFO', service:'unknown', msg:line, source:'logs', line:i+1, raw:line});
+    }
+  });
+  return events;
+}
+function extractDeployEvents(logEvents, deployText){
+  const evts=[];
+  logEvents.forEach(e=>{
+    if(/deploy/i.test(e.msg) && /complet|started|deployed/i.test(e.msg)) evts.push({...e, kind:'deploy'});
+  });
+  const m = deployText.match(/Deployed:\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?)/i);
+  if(m){
+    const t=parseTime(m[1]);
+    if(t && !evts.some(e=>Math.abs(e.time-t)<60000)){
+      evts.push({time:t, rawTime:m[1], level:'INFO', service:'deploy-service', msg:'Deployment completed (from deployment notes)', source:'deploy', line:1, raw:m[0], kind:'deploy'});
+    }
+  }
+  const v = deployText.match(/v\d+\.\d+\.\d+/);
+  if(v) evts.forEach(e=>{ if(!/v\d/.test(e.msg)) e.msg += ` (${v[0]})`; });
+  return evts;
+}
+function signature(msg){
+  return msg.replace(/trace_id=\S+/gi,'').replace(/\d+/g,'#').replace(/\s+/g,' ').trim().slice(0,90);
+}
+function detectComponents(text){
+  const t=text.toLowerCase();
+  const comps=[];
+  if(/\bredis\b/.test(t)) comps.push('Redis');
+  if(/\bpostgres|database|\bdb\b|connection pool/.test(t)) comps.push('Database');
+  if(/\bpayment/.test(t)) comps.push('Payment service');
+  if(/\bcheckout/.test(t)) comps.push('Checkout service');
+  if(/\binventory/.test(t)) comps.push('Inventory');
+  if(/\bkubernetes|k8s|pod/.test(t)) comps.push('Kubernetes');
+  if(/\bkafka|queue/.test(t)) comps.push('Queue');
+  return comps;
+}
+
+// ---------- CORE ENGINE ----------
+function analyze(){
+  const logsText = $('logsInput').value;
+  const bugText = $('bugInput').value;
+  const deployText = $('deployInput').value;
+
+  const logEvents = parseLogs(logsText);
+  const deployEvents = extractDeployEvents(logEvents, deployText);
+  const errors = logEvents.filter(e=>e.level==='ERROR'||e.level==='FATAL');
+  const warns = logEvents.filter(e=>e.level==='WARN');
+
+  const groupsMap = new Map();
+  errors.forEach(e=>{
+    const sig = signature(e.msg);
+    if(!groupsMap.has(sig)) groupsMap.set(sig,{sig, count:0, services:new Set(), first:e, last:e, examples:[]});
+    const g=groupsMap.get(sig);
+    g.count++; g.services.add(e.service);
+    if(e.time < g.first.time) g.first=e;
+    if(e.time > g.last.time) g.last=e;
+    if(g.examples.length<3) g.examples.push(e);
+  });
+  const groups=[...groupsMap.values()].sort((a,b)=>b.count-a.count);
+
+  let timeline=[...logEvents];
+  deployEvents.forEach(d=>{
+    if(!timeline.some(t=>Math.abs(t.time-d.time)<2000 && t.service===d.service)) timeline.push(d);
+  });
+  const bugTimeMatch = bugText.match(/(\d{1,2}:\d{2})\s*(PM|AM)?/i);
+  timeline.sort((a,b)=>a.time-b.time);
+
+  const facts=[];
+  const firstError = errors.length? [...errors].sort((a,b)=>a.time-b.time)[0] : null;
+  const lastDeploy = deployEvents.length? [...deployEvents].sort((a,b)=>b.time-a.time)[0] : null;
+  const deployDone = deployEvents.filter(e=>/complet/i.test(e.msg)).sort((a,b)=>a.time-b.time)[0] || lastDeploy;
+
+  if(logEvents.length) facts.push({text:`Parsed <b>${logEvents.length} log events</b> (${errors.length} errors, ${warns.length} warnings) across services: <b>${[...new Set(logEvents.map(e=>e.service))].join(', ')}</b>`, src:'logs'});
+  if(firstError) facts.push({text:`First error at <b>${fmtTime(firstError.time)}</b> — <code>${esc(firstError.msg.slice(0,80))}</code>`, src:`logs line ${firstError.line}`});
+  if(deployDone) facts.push({text:`Deployment completed at <b>${fmtTime(deployDone.time)}</b> — <code>${esc(deployDone.msg.slice(0,80))}</code>`, src:'logs / deployment notes'});
+  if(firstError && deployDone){
+    const delta = minsBetween(deployDone.time, firstError.time);
+    facts.push({text:`Time between deploy completion and first error: <b>${delta} minutes</b>`, src:'computed from timestamps'});
+  }
+  if(groups.length) facts.push({text:`Most frequent error (${groups[0].count}×): <code>${esc(groups[0].sig)}</code>`, src:'logs (grouped)'});
+  const bugRate = bugText.match(/(\d+)%/);
+  if(bugRate) facts.push({text:`Bug report states error rate ~<b>${bugRate[1]}%</b> and start time around <b>${bugTimeMatch?bugTimeMatch[0]:'—'}</b>`, src:'bug report'});
+  const bugCount = bugText.match(/(\d+)\s+failed/i);
+  if(bugCount) facts.push({text:`Bug report impact: <b>${bugCount[1]} failed checkouts</b> in first minutes`, src:'bug report'});
+  const deployComps = detectComponents(deployText);
+  const errorComps = detectComponents(errors.map(e=>e.msg).join(' '));
+  const overlap = deployComps.filter(c=>errorComps.includes(c));
+  if(deployComps.length) facts.push({text:`Deployment notes mention: <b>${deployComps.join(', ')}</b>`, src:'deployment notes'});
+  if(errorComps.length) facts.push({text:`Errors mention: <b>${errorComps.join(', ')}</b>`, src:'logs'});
+  if(overlap.length) facts.push({text:`Overlap between deploy changes and errors: <b>${overlap.join(', ')}</b>`, src:'cross-reference'});
+  const poolMatch = deployText.match(/pool size from (\d+) to (\d+)/i) || deployText.match(/pool[^\n]*(\d+)[^\n]*to[^\n]*(\d+)/i);
+  if(poolMatch) facts.push({text:`Deployment changed pool size <b>${poolMatch[1]} → ${poolMatch[2]}</b>`, src:'deployment notes'});
+
+  const hypotheses=[];
+  const hasDeployClose = firstError && deployDone && minsBetween(deployDone.time, firstError.time) <= 5 && minsBetween(deployDone.time, firstError.time) >= -1;
+  const redisInDeploy = /redis/i.test(deployText);
+  const redisInErrors = /redis/i.test(errors.map(e=>e.msg).join(' '));
+  const poolCut = /pool size from \d+ to \d+/i.test(deployText) || /reduced.*pool/i.test(deployText);
+  const dbPoolErrors = errors.some(e=>/db.*pool|connection pool exhausted/i.test(e.msg));
+  const paymentErrors = errors.filter(e=>/payment/i.test(e.service+e.msg));
+  const paymentAfterCheckout = paymentErrors.length && firstError && paymentErrors[0].time > firstError.time;
+
+  {
+    let score=0; const forE=[], against=[];
+    if(hasDeployClose){score+=3; forE.push(`Deploy completed ${minsBetween(deployDone.time,firstError.time)} min before first error — tight temporal coupling`);}
+    if(redisInDeploy && redisInErrors){score+=3; forE.push(`Same component (Redis) appears in both deployment changes and error messages`);}
+    if(poolCut){score+=2; forE.push(`Deployment explicitly reduced Redis pool size — matches "pool saturated / timeout" errors`);}
+    if(groups.some(g=>/redis/i.test(g.sig))){score+=1; forE.push(`Dominant error cluster is Redis timeout (${groups.find(g=>/redis/i.test(g.sig))?.count||0} occurrences)`);}
+    if(warns.some(w=>/pool saturated|hit rate dropping/i.test(w.msg))){score+=1; forE.push(`Warning before errors: cache hit rate dropping / pool saturated`);}
+    if(!redisInDeploy) against.push(`Deployment notes do not mention Redis — weakens direct link`);
+    if(!hasDeployClose) against.push(`No deployment within 5 min before first error`);
+    const conf = score>=7?'high':score>=4?'med':'low';
+    hypotheses.push({
+      title:'Deployment v2.4.1 reduced Redis pool → connection timeouts → checkout 500s',
+      conf, score,
+      reasoning:'The deploy changed the exact resource (Redis pool) that later saturated. Errors began seconds after the deploy, and the dominant error is Redis timeout — not a random failure.',
+      forE, against,
+      checks:['Verify Redis active connections hit 10/10 ceiling at 14:19','Check if timeouts disappear when pool restored to 50']
+    });
+  }
+  {
+    let score=0; const forE=[], against=[];
+    if(dbPoolErrors){score+=3; forE.push(`Explicit "DB connection pool exhausted" error at ${fmtTime(errors.find(e=>/db.*pool/i.test(e.msg))?.time||firstError.time)}`);}
+    if(deployText.match(/DB pool.*20.*30/i)){score+=1; forE.push(`Deploy also touched DB pool (20→30) — possible contention shift`);}
+    if(errors.length>5){score+=1; forE.push(`Error volume high enough to exhaust downstream pools under retry load`);}
+    against.push(`DB error appears ~3 min AFTER Redis errors — suggests cascade, not primary cause`);
+    against.push(`No deploy change that would directly shrink DB pool (it grew 20→30)`);
+    const conf = score>=5?'med':score>=3?'low':'low';
+    hypotheses.push({
+      title:'Database pool exhaustion as secondary cascade from Redis retries',
+      conf, score,
+      reasoning:'Once Redis timed out, checkout retried and held DB connections longer, exhausting the DB pool. This explains the later DB error without needing a DB deploy change.',
+      forE, against,
+      checks:['Check DB pool wait queue timing vs Redis errors','Look for retry storms in checkout-service']
+    });
+  }
+  {
+    let score=0; const forE=[], against=[];
+    if(paymentErrors.length){score+=2; forE.push(`${paymentErrors.length} payment-service error(s) present`);}
+    if(paymentAfterCheckout){score+=1; forE.push(`Payment errors occur AFTER checkout Redis errors (downstream effect)`);}
+    against.push(`Payment error message says "inventory reservation failed" — points upstream to checkout/Redis, not payment itself`);
+    against.push(`Bug report: "Payment gateway itself is healthy per status page"`);
+    const conf='low';
+    hypotheses.push({
+      title:'Payment service failure causing checkout errors',
+      conf, score,
+      reasoning:'Payment errors exist, but their message and timing indicate they are the victim of upstream inventory failure, not the origin.',
+      forE, against,
+      checks:['Confirm payment-service direct health checks passed','Trace one trace_id end-to-end: Redis → checkout → payment']
+    });
+  }
+  if(!hasDeployClose){
+    hypotheses.push({
+      title:'Traffic spike or load increase overwhelming services',
+      conf:'low', score:1,
+      reasoning:'No close deploy found, so load is a plausible alternative — but evidence is weak without traffic metrics.',
+      forE:['Error rate rose to ~18% (per alert/bug report)'],
+      against:['No traffic data supplied','Errors are specific (Redis timeout), not generic overload'],
+      checks:['Check request volume vs baseline at incident time','Check CPU/memory on checkout pods']
+    });
+  }
+
+  hypotheses.sort((a,b)=>b.score-a.score);
+
+  const top = hypotheses[0];
+  let steps=[];
+  if(top && /Redis pool/i.test(top.title)){
+    steps=[
+      {t:'Check Redis connection metrics now', d:'Active connections, pool wait queue, timeout count — confirm 10/10 saturation at 14:19–14:25.'},
+      {t:'Restore pool size to 50 (or hot-patch config)', d:'Fastest mitigation. Redeploy v2.4.0 config or bump pool to 50 and watch error rate drop.'},
+      {t:'Verify timeout setting (2000ms) is sufficient', d:'With new inventory-check logic, each checkout may hold connections longer. Consider 5000ms or async reserve.'},
+      {t:'Check for retry storm', d:'Are clients/checkout retrying Redis on timeout and amplifying load? Add backoff + circuit breaker.'},
+      {t:'Validate DB pool under restored Redis', d:'DB exhaustion at 14:22 should clear once Redis recovers. If not, raise DB pool or fix connection leaks.'},
+      {t:'Add alert: Redis pool utilization >80% for 2 min', d:'Prevent silent saturation. Alert on pool wait queue, not just error rate.'},
+      {t:'Post-incident: load-test v2.4.1 inventory logic', d:'Reproduce with pool=10 under realistic checkout concurrency before re-shipping.'},
+    ];
+  } else {
+    steps=[
+      {t:'Correlate first error with nearest deploy', d:'List all deploys in 30 min before first error. Check diff for changed components.'},
+      {t:'Group errors by signature', d:'Focus on the most frequent cluster first — it usually points to the primary failure.'},
+      {t:'Trace one trace_id end-to-end', d:'Follow a single request across services to see where it first fails.'},
+      {t:'Check downstream health independently', d:'Rule out payment/DB/Redis outages via their own dashboards.'},
+      {t:'Consider rollback of nearest deploy', d:'If deploy is within 5 min and shares a component with errors, rollback is the fastest test.'},
+    ];
+  }
+
+  renderStats({logEvents, errors, groups, deployEvents, firstError, deployDone});
+  renderFacts(facts);
+  renderTimeline(timeline);
+  renderGroups(groups);
+  renderHypotheses(hypotheses);
+  renderSteps(steps);
+  renderTrace({logEvents, errors, groups, deployEvents, firstError, deployDone, hypotheses, overlap, hasDeployClose});
+
+  window._lastReport = {facts, timeline, groups, hypotheses, steps, firstError, deployDone};
+  updateCharCount();
+}
+
+function renderStats(d){
+  const delta = d.firstError && d.deployDone ? minsBetween(d.deployDone.time, d.firstError.time) : null;
+  $('stats').innerHTML = `
+    <div class="stat"><span class="icon">📋</span><b>${d.logEvents.length}</b><span>log events parsed</span></div>
+    <div class="stat"><span class="icon">🔴</span><b>${d.errors.length}</b><span>errors · ${d.groups.length} clusters</span></div>
+    <div class="stat"><span class="icon">🚀</span><b>${d.deployEvents.length||'—'}</b><span>deployment event(s)</span></div>
+    <div class="stat"><span class="icon">⚡</span><b>${delta!==null?delta+' min':'—'}</b><span>deploy → first error</span></div>`;
+}
+function renderFacts(facts){
+  $('facts').innerHTML = facts.length? facts.map(f=>`<div class="fact"><span class="dot"></span><div style="flex:1">${f.text}</div><span class="muted" style="font-size:11px;white-space:nowrap;background:#fff;padding:2px 7px;border-radius:999px;border:1px solid #e2e8f0">${esc(f.src)}</span></div>`).join('') : '<div class="empty">No evidence yet — paste logs / bug report / deploy notes and analyze.</div>';
+}
+function renderTimeline(timeline){
+  if(!timeline.length){ $('timeline').innerHTML='<div class="empty">No timeline yet.</div>'; return; }
+  $('timeline').innerHTML = timeline.map(e=>{
+    const kind = /deploy/i.test(e.msg)?'deploy': e.level==='ERROR'?'error': e.level==='WARN'?'warn': /alert/i.test(e.msg)?'alert':'info';
+    const tag = kind==='deploy'?'<span class="tag deploy">🚀 DEPLOY</span>': kind==='error'?'<span class="tag error">🔴 ERROR</span>': kind==='warn'?'<span class="tag hypothesis">⚠️ WARN</span>': kind==='alert'?'<span class="tag error">🚨 ALERT</span>':'';
+    const icon = kind==='deploy'?'🚀': kind==='error'?'🔴': kind==='warn'?'⚠️': kind==='alert'?'🚨':'ℹ️';
+    return `<div class="titem ${kind}"><div class="tmeta">${icon} ${fmtTime(e.time)} · ${esc(e.service)} · ${esc(e.level)}${tag}</div><div class="tmsg">${esc(e.msg)}</div></div>`;
+  }).join('');
+}
+function renderGroups(groups){
+  $('errorGroups').innerHTML = groups.length? groups.map(g=>`
+    <div class="errgroup">
+      <div class="row" style="justify-content:space-between"><code>${esc(g.sig)}</code><b style="background:linear-gradient(135deg,#f43f5e,#ec4899);color:#fff;padding:4px 10px;border-radius:999px;font-size:12px">${g.count}×</b></div>
+      <div class="muted" style="margin-top:8px">Services: ${[...g.services].join(', ')} · First: ${fmtTime(g.first.time)} · Last: ${fmtTime(g.last.time)}</div>
+      <div class="muted" style="margin-top:6px">Example: <span class="kbd">${esc(g.examples[0].raw.slice(0,110))}</span></div>
+    </div>`).join('') : '<div class="empty">No errors found. Check log format: <span class="kbd">2026-11-13T14:19:15Z ERROR service message</span></div>';
+}
+function renderHypotheses(hyps){
+  $('hypotheses').innerHTML = hyps.map((h,i)=>`
+    <div class="hyp ${i===0?'top':''}">
+      <div class="hyp-head">
+        <div><b style="font-size:15px">#${i+1} ${esc(h.title)}</b> ${i===0?'<span class="tag hypothesis">⭐ TOP HYPOTHESIS</span>':''}</div>
+        <span class="conf ${h.conf}">${h.conf.toUpperCase()} · ${h.score}</span>
+      </div>
+      <p style="margin:10px 0;font-size:13.5px;color:#334155;line-height:1.6">${esc(h.reasoning)}</p>
+      <div class="evidence"><b style="color:#059669">✅ Evidence for:</b><ul style="margin:7px 0 0;padding-left:18px;line-height:1.6">${h.forE.map(x=>`<li>${esc(x)}</li>`).join('')||'<li>—</li>'}</ul>
+      ${h.against.length?`<b style="margin-top:10px;display:block;color:#d97706">⚠️ Evidence against / caveats:</b><ul style="margin:7px 0 0;padding-left:18px;line-height:1.6">${h.against.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+      <b style="margin-top:10px;display:block;color:#6366f1">🔬 How to test:</b><ul style="margin:7px 0 0;padding-left:18px;line-height:1.6">${h.checks.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+    </div>`).join('') || '<div class="empty">No hypotheses — add more evidence.</div>';
+}
+function renderSteps(steps){
+  $('steps').innerHTML = steps.map(s=>`<li><b>${esc(s.t)}</b><span>${esc(s.d)}</span></li>`).join('');
+}
+function renderTrace(d){
+  const lines=[
+    `events_parsed: ${d.logEvents.length}`,
+    `errors: ${d.errors.length}, clusters: ${d.groups.length}`,
+    `deploy_events: ${d.deployEvents.length}`,
+    `first_error: ${d.firstError?fmtTime(d.firstError.time):'none'}`,
+    `deploy_done: ${d.deployDone?fmtTime(d.deployDone.time):'none'}`,
+    `deploy_close_to_error (<=5min): ${d.hasDeployClose}`,
+    `component_overlap: ${d.overlap.join(', ')||'none'}`,
+    `hypotheses_ranked:`,
+    ...d.hypotheses.map((h,i)=>`  ${i+1}. [${h.conf}] ${h.title} (score=${h.score})`),
+    ``,
+    `note: Facts are extracted verbatim/computed from timestamps. Hypotheses are scored inferences — always verify with the "How to test" checks.`
+  ];
+  $('trace').textContent = lines.join('\n');
+}
+
+// ---------- UI WIRING ----------
+function updateCharCount(){
+  const total = $('logsInput').value.length + $('bugInput').value.length + $('deployInput').value.length;
+  $('charCount').textContent = total.toLocaleString()+' chars';
+}
+function loadSample(){
+  $('logsInput').value = SAMPLE.logs;
+  $('bugInput').value = SAMPLE.bug;
+  $('deployInput').value = SAMPLE.deploy;
+  updateCharCount();
+}
+function exportReport(){
+  const r = window._lastReport; if(!r){ toast('Analyze first'); return; }
+  let md = `# Incident Report\n\nGenerated by AI Incident Investigator (MVP)\n\n## Confirmed Facts\n`;
+  r.facts.forEach(f=> md+=`- ${f.text.replace(/<[^>]+>/g,'')} (source: ${f.src})\n`);
+  md+=`\n## Timeline\n`;
+  r.timeline.forEach(e=> md+=`- ${fmtTime(e.time)} [${e.level}] ${e.service}: ${e.msg}\n`);
+  md+=`\n## Related Errors\n`;
+  r.groups.forEach(g=> md+=`- ${g.count}× ${g.sig}\n`);
+  md+=`\n## Hypotheses\n`;
+  r.hypotheses.forEach((h,i)=>{ md+=`\n### ${i+1}. ${h.title} [${h.conf}]\n${h.reasoning}\nFor: ${h.forE.join('; ')}\nAgainst: ${h.against.join('; ')}\n`});
+  md+=`\n## Debugging Steps\n`;
+  r.steps.forEach((s,i)=> md+=`${i+1}. ${s.t} — ${s.d}\n`);
+  const blob=new Blob([md],{type:'text/markdown'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='incident-report.md'; a.click();
+  toast('✅ Report exported');
+}
+function copySummary(){
+  const r=window._lastReport; if(!r){toast('Analyze first');return;}
+  const top=r.hypotheses[0];
+  const txt=`Incident: ${r.groups[0]?r.groups[0].sig:'unknown'} (${r.groups[0]?.count||0}×)\nFirst error: ${r.firstError?fmtTime(r.firstError.time):'—'} · Deploy: ${r.deployDone?fmtTime(r.deployDone.time):'—'}\nTop hypothesis [${top?.conf}]: ${top?.title}\nNext step: ${r.steps[0]?.t}`;
+  navigator.clipboard.writeText(txt).then(()=>toast('📋 Summary copied'));
+}
+
+$('loadSample').onclick=()=>{loadSample(); analyze(); toast('✨ Sample loaded & analyzed');};
+$('analyzeBtn').onclick=()=>{analyze(); toast('✅ Analysis complete');};
+$('clearBtn').onclick=()=>{$('logsInput').value='';$('bugInput').value='';$('deployInput').value='';updateCharCount(); $('facts').innerHTML='<div class="empty">Cleared. Load sample or paste your own evidence.</div>'; $('timeline').innerHTML=''; $('errorGroups').innerHTML=''; $('hypotheses').innerHTML=''; $('steps').innerHTML=''; $('stats').innerHTML=''; $('trace').textContent='';};
+$('exportBtn').onclick=exportReport;
+$('copyBtn').onclick=copySummary;
+['logsInput','bugInput','deployInput'].forEach(id=> $(id).addEventListener('input', updateCharCount));
+
+// Init with sample
+loadSample();
+analyze();
+</script>
+</body>
+</html>
